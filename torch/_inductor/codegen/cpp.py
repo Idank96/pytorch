@@ -1172,7 +1172,7 @@ class CppKernel(Kernel):
 
     def __init__(self, args, num_threads):
         super().__init__(args)
-        self.call_ranges: Tuple = tuple()
+        self.call_ranges: Tuple[int, ...] = tuple()
         self.ranges = []
         self.itervars = []
         self.reduction_depth = None
@@ -1280,7 +1280,7 @@ class CppKernel(Kernel):
         )
 
     def set_ranges(self, lengths, reduction_lengths):
-        if self.call_ranges:
+        if len(self.call_ranges):
             assert self.call_ranges == tuple(lengths) + tuple(
                 reduction_lengths
             ), f"{self.call_ranges} == {tuple(lengths)} + {tuple(reduction_lengths)}"
@@ -2115,7 +2115,7 @@ class CppVecKernelChecker(CppVecKernel):
                     # Vectorization only support int32/fp32 now
                     # So if dtype = int64/fp64, we will cast it to int32/fp32 if possible
                     opt_ctx.dtype = dtype
-                    i32_iinfo: numpy.iinfo = numpy.iinfo(numpy.int32)
+                    i32_iinfo: numpy.iinfo[numpy.int32] = numpy.iinfo(numpy.int32)
                     if (
                         dtype == torch.int64
                         and val <= i32_iinfo.max
@@ -2123,7 +2123,7 @@ class CppVecKernelChecker(CppVecKernel):
                     ):
                         opt_ctx.dtype = torch.int32
 
-                    f32_iinfo: numpy.finfo = numpy.finfo(numpy.float32)
+                    f32_iinfo: numpy.finfo[numpy.float32] = numpy.finfo(numpy.float32)
                     if dtype == torch.double:
                         if (
                             (val <= f32_iinfo.max and val >= f32_iinfo.min)
@@ -2173,7 +2173,7 @@ class CppVecKernelChecker(CppVecKernel):
 
                     vars_ranges = {k: ValueRanges(0, v - 1) for k, v in sizes.items()}
                     if not vars_ranges or len(vars_ranges) != len(free_symbols):
-                        i32_iinfo: numpy.iinfo = numpy.iinfo(numpy.int32)
+                        i32_iinfo: numpy.iinfo[numpy.int32] = numpy.iinfo(numpy.int32)
                         return (
                             expr.is_number
                             and expr <= i32_iinfo.max
@@ -2316,7 +2316,7 @@ class CppKernelProxy(CppKernel):
         super().__init__(kernel_group.args, kernel_group.ws.num_threads)
         self.kernel_group = kernel_group
         self.loop_nest = None
-        self.call_ranges: Tuple = tuple()
+        self.call_ranges: Tuple[int, ...] = tuple()
         self.picked_vec_isa: codecache.VecISA = codecache.pick_vec_isa()
 
     def data_type_propagation(self, nodes):
@@ -2740,7 +2740,6 @@ class CppScheduling(BaseScheduling):
         self.kernel_group: KernelGroup = KernelGroup()
         if isinstance(V.graph.wrapper_code, CppWrapperCodeGen):
             self.kernel_group = CppWrapperKernelGroup()
-            
 
     def _can_fuse_horizontal_impl(self, node1, node2):
         _, (vars1, reduce1) = node1.group
@@ -2909,7 +2908,7 @@ class LoopLevel:
     simd_omp: bool = False
     simd_vec: bool = False
     collapsed: bool = False
-    reduction_var_map: Dict[str, str] = {}
+    reduction_var_map: Dict[str, str] = dataclasses.field(default_factory=dict)
     parent: Union["LoopLevel", None] = None
     # the next inner level of the loop, empty if it is inner-most
     # contains >1 LoopLevel if the inner level of loop is split
