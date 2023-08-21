@@ -727,6 +727,17 @@ cmake_dependent_option(
   "Whether to build the flash_attention kernel for scaled dot product attention" ON
   "USE_CUDA AND NOT ROCM AND NOT CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.6" OFF)
 
+# For low memory runners, building flash-attention will OOM
+if(USE_FLASH_ATTENTION)
+  # message("Total physical memory: ${TOTAL_PHYSICAL_MEMORY} MB")
+  # message(warning "Total memory is ${TOTAL_PHYSICAL_MEMORY} MB, which is less than 16GB. Setting nvcc threads to 1.")
+  # math(EXPR MEMORY_FLOOR "16*1000*1024*1024")
+  # if(${TOTAL_PHYSICAL_MEMORY} LESS ${MEMORY_FLOOR})
+  #   message(warning "Total memory is ${total_memory} MB, which is less than 16GB. Setting nvcc threads to 1.")
+    string(APPEND CMAKE_CUDA_FLAGS " --threads=1")
+  # endif()
+endif()
+
 if(DEBUG_CUDA)
   string(APPEND CMAKE_CUDA_FLAGS_DEBUG " -lineinfo")
   string(APPEND CMAKE_CUDA_FLAGS_RELWITHDEBINFO " -lineinfo")
