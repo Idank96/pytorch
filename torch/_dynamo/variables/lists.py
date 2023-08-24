@@ -913,3 +913,34 @@ class SetVariable(VariableTracker):
 
     def unpack_var_sequence(self, tx):
         return [x.add_options(self) for x in self.items]
+
+class KJTListVariable(ListVariable):
+    def __init__(
+        self,
+        kjt,
+        **kwargs,
+    ):
+        unimplemented("Not working yet, track_object_new needs to be made ctor arg aware :()")
+        return super().__init__(kjt.features, **kwargs)
+
+    @staticmethod
+    def is_keyed_jagged_tensor_list(obj):
+        if not torch.distributed.is_available():
+            return False
+        try:
+            from torchrec.distributed.embedding_types import KJTList
+        except ImportError:
+            return False
+        else:
+            return type(obj) is KJTList
+
+    @staticmethod
+    def is_keyed_jagged_tensor_list_cls(obj):
+        if not torch.distributed.is_available():
+            return False
+        try:
+            from torchrec.distributed.embedding_types import KJTList
+        except ImportError:
+            return False
+        else:
+            return obj is KJTList

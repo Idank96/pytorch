@@ -102,6 +102,7 @@ from .lists import (
     SliceVariable,
     TupleIteratorVariable,
     TupleVariable,
+    KJTListVariable,
 )
 from .misc import (
     AutogradFunctionContextVariable,
@@ -131,7 +132,6 @@ from .user_defined import (
     KeyedJaggedTensorVariable,
     UserDefinedClassVariable,
     UserDefinedObjectVariable,
-    is_keyed_jagged_tensor_list,
 )
 
 
@@ -632,9 +632,8 @@ class VariableBuilder:
             return self.tx.output.side_effects.track_object_existing(
                 self.source, value, result
             )
-        elif is_keyed_jagged_tensor_list(value):
-            # This suffices for now, we don't need a custom object for it yet
-            return ListVariable(value.features, mutable_local=MutableLocal(), **options)
+        elif KJTListVariable.is_keyed_jagged_tensor_list(value):
+            return KJTListVariable(value, mutable_local=MutableLocal(), **options)
         elif isinstance(value, torch.optim.Optimizer):
             return OptimizerVariable(
                 value,
