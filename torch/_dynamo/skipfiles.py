@@ -15,6 +15,7 @@ import linecache
 import logging
 import multiprocessing
 import operator
+import itertools
 import os
 import posixpath
 import random

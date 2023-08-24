@@ -194,6 +194,8 @@ class UserDefinedObjectVariable(UserDefinedVariable):
         super().__init__(**kwargs)
         self.value = value
         self.value_type = value_type or type(value)
+        if is_keyed_jagged_tensor_list(value):
+            breakpoint()
         assert type(value) is self.value_type
 
     def __str__(self):
@@ -533,12 +535,11 @@ class UserDefinedObjectVariable(UserDefinedVariable):
                 ).add_options(self, result)
             except KeyError:
                 pass
-        if not self.source:
-            unimplemented("hasattr no source")
         options = VariableTracker.propagate(self)
-        options["guards"].add(
-            AttrSource(self.source, name).make_guard(GuardBuilder.HASATTR)
-        )
+        if self.source:
+            options["guards"].add(
+                AttrSource(self.source, name).make_guard(GuardBuilder.HASATTR)
+            )
         if self._check_for_getattribute() or self._check_for_getattr():
             unimplemented("hasattr with custom __getattr__")
 
@@ -564,6 +565,26 @@ class UserDefinedObjectVariable(UserDefinedVariable):
             collections.OrderedDict.__getitem__(self.value, key.as_python_constant())
         ).add_options(key, self)
 
+
+def is_keyed_jagged_tensor_list(obj):
+    if not torch.distributed.is_available():
+        return False
+    try:
+        from torchrec.distributed.embedding_types import KJTList
+    except ImportError:
+        return False
+    else:
+        return type(obj) is KJTList
+
+def is_keyed_jagged_tensor_list_cls(obj):
+    if not torch.distributed.is_available():
+        return False
+    try:
+        from torchrec.distributed.embedding_types import KJTList
+    except ImportError:
+        return False
+    else:
+        return obj is KJTList
 
 class KeyedJaggedTensorVariable(UserDefinedObjectVariable):
     @staticmethod

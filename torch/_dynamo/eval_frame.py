@@ -604,6 +604,7 @@ def optimize(
             backend,
             dynamic=dynamic,
             hooks=hooks,
+            nopython=nopython,
         )
     return _optimize_catch_errors(
         convert_frame.convert_frame(backend, hooks=hooks),
@@ -1323,6 +1324,7 @@ def optimize_assert(
     export=False,
     export_constraints=None,
     dynamic=None,
+    nopython=False,
 ):
     """
     The same as `torch._dynamo.optimize(backend, nopython=True)`
@@ -1334,7 +1336,7 @@ def optimize_assert(
 
     return _optimize_catch_errors(
         convert_frame.convert_frame_assert(
-            backend, export=export, export_constraints=export_constraints
+            backend, export=export, export_constraints=export_constraints,  one_graph=nopython
         ),
         hooks,
         backend_ctx_ctor,

@@ -620,6 +620,14 @@ class PythonModuleVariable(VariableTracker):
     def python_type(self):
         return types.ModuleType
 
+def _itertools_apply(tx, fn, args, options):
+    seqs = [arg.unpack_var_sequence(tx) for arg in args]
+    items = []
+    for item in fn(*seqs):
+        items.append(item)
+    return variables.ListIteratorVariable(
+        items, mutable_local=MutableLocal(), **options
+    )
 
 class SkipFilesVariable(VariableTracker):
     def __init__(self, value, **kwargs):
@@ -691,29 +699,13 @@ class SkipFilesVariable(VariableTracker):
                 value, mutable_local=MutableLocal(), **options
             )
         elif (
-            self.value is itertools.product
+            self.value in [itertools.product, itertools.chain, itertools.accumulate]
             and not kwargs
             and all(arg.has_unpack_var_sequence(tx) for arg in args)
         ):
-            seqs = [arg.unpack_var_sequence(tx) for arg in args]
-            items = []
-            for item in itertools.product(*seqs):
-                items.append(variables.TupleVariable(list(item), **options))
-            return variables.ListIteratorVariable(
-                items, mutable_local=MutableLocal(), **options
-            )
-        elif (
-            self.value is itertools.chain
-            and not kwargs
-            and all(arg.has_unpack_var_sequence(tx) for arg in args)
-        ):
-            seqs = [arg.unpack_var_sequence(tx) for arg in args]
-            items = []
-            for item in itertools.chain(*seqs):
-                items.append(item)
-            return variables.ListIteratorVariable(
-                items, mutable_local=MutableLocal(), **options
-            )
+            # For accumulate, this uses the default func=operator.add arg -
+            # for any other func arg or kwarg, we fall through to unimplemented for now.
+            return _itertools_apply(tx, self.value, args, options)
         elif (
             self.value is itertools.combinations
             and not kwargs

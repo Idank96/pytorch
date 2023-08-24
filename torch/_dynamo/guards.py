@@ -960,7 +960,7 @@ class CheckFunctionManager:
             if verbose_guards_log.isEnabledFor(logging.DEBUG):
                 maybe_stack = ""
                 maybe_user_stack = ""
-                if guard is not None:
+                if guard is not None and guard.stack is not None:
                     maybe_stack = f"\nStack:\n{''.join(guard.stack.format())}"
                     if guard.user_stack:
                         maybe_user_stack = (
