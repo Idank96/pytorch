@@ -5,19 +5,13 @@ from unittest.mock import patch
 import functorch
 
 import torch
+import torch._inductor.compile_fx
 import torch._inductor.config as config
-from torch._dynamo.backends.registry import register_backend
 from torch._inductor import metrics
-from torch._inductor.compile_fx import compile_fx, count_bytes_inner
 from torch.testing._internal.common_utils import IS_WINDOWS, TestCase as TorchTestCase
 from torch.testing._internal.inductor_utils import HAS_CUDA
 
 aten = torch.ops.aten
-
-
-@register_backend
-def count_bytes_inductor(gm, example_inputs):
-    return compile_fx(gm, example_inputs, inner_compile=count_bytes_inner)
 
 
 if not IS_WINDOWS:
@@ -358,6 +352,7 @@ class SchedulerFusionTests(TestCase):
         cls._stack.close()
         super().tearDownClass()
 
+    @patch.object(config, "pattern_matcher", False)
     def test_fusion_choice1(self):
         # Doesn't matter where we break fusion group here
         def f(a):
@@ -369,6 +364,7 @@ class SchedulerFusionTests(TestCase):
         inp = (T(10, 10),)
         self.assertExpectedInline(count_numel(f, *inp), """700""")
 
+    @patch.object(config, "pattern_matcher", False)
     def test_fusion_choice2(self):
         # We should materialize e (it's smaller!)
         # [c, e]: 210, [f]: 210, [d]: 200
@@ -382,6 +378,7 @@ class SchedulerFusionTests(TestCase):
         inp = (T(10, 10),)
         self.assertExpectedInline(count_numel(f, *inp), """620""")
 
+    @patch.object(config, "pattern_matcher", False)
     def test_fusion_choice3(self):
         # We should materialize e.
         # [c, e]: 300, [f]: 300, [d]: 200
@@ -449,6 +446,7 @@ class MinCutPartitioningTests(TestCase):
         inp = (T(10, 10, grad=True),)
         self.assertExpectedInline(count_numel_train(f, *inp), """1300""")
 
+    @patch.object(config, "pattern_matcher", False)
     def test_partitioning_unremat_bw2(self):
         def f(a):
             a = torch.mm(a, a)
@@ -466,6 +464,50 @@ class MinCutPartitioningTests(TestCase):
 
         inp = (T(20, 1, grad=True), T(1, 20, grad=True))
         self.assertExpectedInline(count_numel_train(f, *inp), """220""")
+
+unfusible = lambda x: aten.special_bessel_j0(x)
+class NoopTests(TestCase):
+    def test_noop_clones(self):
+        def f(a):
+            b = a.clone()
+            b = unfusible(b)
+            return b
+
+        inp = T(10)
+        self.assertExpectedInline(count_numel(f, inp), """20""")
+
+        def f(a):
+            b = a.clone()
+            c = unfusible(b)
+            return b, c
+        self.assertExpectedInline(count_numel(f, inp), """40""")
+
+    def test_noop_slice_scatter(self):
+        def f(a):
+            b = aten.slice_scatter(a, a)
+            c = unfusible(b)
+            return c
+        inp = T(10)
+        self.assertExpectedInline(count_numel(f, inp), """20""")
+
+
+class InplacingTests(TestCase):
+    def test_inplace_scatter(self):
+        def f(a, b):
+            a = a.cos()
+            a[b] = 1
+            return a
+
+        inp = (T(10), TI(2, mx=5))
+        self.assertExpectedInline(count_numel(f, *inp), """26""")
+
+    def test_inplace_scatter_noop_view(self):
+        def f(a, b):
+            a[:, b] = 1
+            return a
+
+        inp = (T(10, 10), TI(2, mx=5))
+        self.assertExpectedInline(count_numel(f, *inp), """42""")
 
 
 # Test cases where we don't do the right thing yet.

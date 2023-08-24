@@ -21,6 +21,7 @@ from torch._dynamo import (
     logging as dynamo_logging,
     utils as dynamo_utils,
 )
+from torch._dynamo.backends.registry import register_backend
 from torch._dynamo.utils import detect_fake_mode
 from torch._functorch.aot_autograd import make_boxed_func
 from torch._inductor.codecache import code_hash, CompiledFxGraph
@@ -166,6 +167,10 @@ def count_bytes_inner(
     **kwargs,
 ):
     shape_env = _shape_env_from_inputs(example_inputs)
+    fake_mode = fake_tensor_prop(gm, example_inputs)
+
+    with V.set_fake_mode(fake_mode):
+        post_grad_passes(gm, False)
 
     graph = GraphLowering(gm, shape_env=shape_env, num_static_inputs=num_fixed)
     with V.set_graph_handler(graph), V.set_real_inputs(example_inputs):
@@ -175,6 +180,11 @@ def count_bytes_inner(
         metrics.nodes_num_elem += nodes_num_elem
         metrics.node_runtimes += node_runtimes
     return make_boxed_func(gm.forward)
+
+
+@register_backend
+def count_bytes_inductor(gm, example_inputs):
+    return compile_fx(gm, example_inputs, inner_compile=count_bytes_inner)
 
 
 def inner_compile_with_cpp_wrapper(inner_compile: Callable[..., Any]):
